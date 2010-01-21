@@ -40,14 +40,25 @@ int main(int argc, char**argv){
 	}
 
 	printf("Waiting for data on port %d...\n", atoi(argv[1]));
-	if((retval = accept(sock, (struct sockaddr *)&client, &length)) == -1){
-		printf("Could not accept client\n");
-		return 1;
-	}
-
-	printf("Received connection from client %s and port %d\n", inet_ntoa(client.sin_addr), ntohs(client.sin_port));
 	
-	close(sock);
+	for(;;){
 
+		if((retval = accept(sock, (struct sockaddr *)&client, &length)) == -1){
+			printf("Could not accept client\n");
+			return 1;
+		}
+
+		printf("Received connection from client %s and port %d\n", inet_ntoa(client.sin_addr), ntohs(client.sin_port));
+			
+		char* greeting = "Thanks for the message!!\n";
+		char* reply = malloc(sizeof(char)*512);
+		int receivedMsgSize;
+		send(retval, greeting, strlen(greeting), 0);
+		
+		if((receivedMsgSize = recv(retval, reply, 512, 0)) < 0)
+			printf("Error receiving message\n");
+		printf("message from client: %s\n", reply);
+	}
+	close(sock);
 	return 0;
 }
