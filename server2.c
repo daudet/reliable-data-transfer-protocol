@@ -53,7 +53,7 @@ int main(int argc, char**argv){
 	char* greeting = "Thanks for the message!!\n";
 	char* reply = malloc(sizeof(char)*512);
 	int receivedMsgSize;
-	time_t time;
+	time_t t_time;
 	struct tm* tmstring;
 	int seq = 0;
 	char timestring[256];
@@ -61,11 +61,12 @@ int main(int argc, char**argv){
 	for(;;){	
 		if((receivedMsgSize = recv(retval, reply, 512, 0)) < 0){
 			printf("Error receiving message\n");
-			tmstring = localtime(&time);
-			strftime(timestring, sizeof(timestring), "%y %b %d %T", tmstring);  
-			printf("Seq no. %d %s\n", ++seq, timestring);
+			}
+			time(&t_time);
+			tmstring = localtime(&t_time);
+			strftime(timestring, sizeof(timestring), "%Y %b %d %T", tmstring);  
+			printf("Seq no. %d %s %s:%d \n", ++seq, timestring, inet_ntoa(client.sin_addr), ntohs(client.sin_port));
 			send(retval, reply, strlen(greeting), 0);
-		}
 	}
 	close(sock);
 	return 0;
