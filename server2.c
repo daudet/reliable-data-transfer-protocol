@@ -8,6 +8,7 @@
 #include<unistd.h>
 #include<string.h>
 #include<time.h>
+#include<fcntl.h>
 
 int main(int argc, char**argv){
 
@@ -65,8 +66,15 @@ int main(int argc, char**argv){
 			time(&t_time);
 			tmstring = localtime(&t_time);
 			strftime(timestring, sizeof(timestring), "%Y %b %d %T", tmstring);  
-			printf("Seq no. %d %s %s:%d \n", ++seq, timestring, inet_ntoa(client.sin_addr), ntohs(client.sin_port));
-			send(retval, reply, strlen(greeting), 0);
+			printf("Seq no. %d %s %s:%d %s\n", ++seq, timestring, inet_ntoa(client.sin_addr), ntohs(client.sin_port), reply);
+			char buffer[2048];
+			int fd = open("/home/david/testing.txt", O_RDONLY);
+			int n;
+			while((n=read(fd, buffer, 2048))>0){
+				send(retval, buffer, n, 0);
+			}
+			close(fd);
+			//send(retval, reply, strlen(greeting), 0);
 	}
 	close(sock);
 	return 0;
