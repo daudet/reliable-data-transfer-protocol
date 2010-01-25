@@ -13,11 +13,49 @@
 #include<time.h>
 #include<fcntl.h>
 #include<sys/stat.h>
+#include<pthread.h>
 
-void printlog(int seqNo, char* clientAddr, int port, char* message, char* response, char* resource);
+struct sock_data{
+	int socketfd;
+	struct sockaddr_in* addrinfo;
+};
 
+
+void print_log(int seqNo, char* clientAddr, int port, char* message, char* response, char* resource);
+void handle_connection(struct sock_data*);
+
+void print_log(int seqNo, char* clientAddr, int port, char* message, char* response, char* resource){
+	time_t time_val;
+	struct tm* tmstring;
+	char timestring[256];
+	time(&time_val);
+	tmstring = localtime(&time_val);
+	strftime(timestring, sizeof(timestring), "%Y %b %d %T", tmstring);
+	printf("Seq no. %d %s %s:%d %s;%s;\n%s\n", seqNo, timestring, clientAddr, port, message, response, resource);
+	
+}
+void handle_connection(struct sock_data* client){
+	
+	int receivedMsgSize;
+	char* request = malloc(sizeof(char)*512);
+	char* response = malloc(sizeof(char)*512);
+	char* resource = malloc(sizeof(char)*512);
+	int n = 0;
+
+	for(;;){
+		if((receivedMsgSize = recv(client->socketfd, request, 512, 0)) < 0)
+			perror("Error receiving message\n");
+		request[strlen(request)-1] = '\0';
+		response = "HTTP/1.0 200 OK";
+		resource = "/index.html";
+		print_log(++n, inet_ntoa(client->addrinfo->sin_addr), ntohs(client->addrinfo->sin_port), request, response, resource);
+		send(client->socketfd, response, strlen(response), 0);
+		send(client->socketfd, "\n", 1, 0);
+	}
+}
 int main(int argc, char** argv){
 
+	pthread_t tid;
 	int serverSock, clientSock;
 	int optval = 1;
 	struct sockaddr_in client, server;
@@ -67,5 +105,21 @@ int main(int argc, char** argv){
 	printf("sws is running on TCP port %d and serving %s\n", atoi(argv[1]), argv[2]);
 	printf("press 'q' to quit ...\n");
 
+	//accept connections
+
+	for(;;){
+		
+		struct sock_data threadarg;		
+
+		if((clientSock = accept(serverSock, (struct sockaddr*)&client, &length)) == -1){
+			perror("Could not accept client\n");
+			return -1;
+		}
+		threadarg.socketfd = clientSock;
+		threadarg.addrinfo = &client;
+		pthread_create(&tid, 0, handle_connection, &threadarg);
+	}
+	
+	
 	return 0;
 }
