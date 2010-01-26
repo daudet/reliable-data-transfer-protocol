@@ -20,7 +20,6 @@ struct sock_data{
 	struct sockaddr_in* addrinfo;
 };
 
-
 void print_log(int seqNo, char* clientAddr, int port, char* message, char* response, char* resource);
 void handle_connection(struct sock_data*);
 
@@ -38,16 +37,30 @@ void handle_connection(struct sock_data* client){
 	
 	int receivedMsgSize;
 	char* request = malloc(sizeof(char)*512);
+	char* next_request = malloc(sizeof(char)*512);
 	char* response = malloc(sizeof(char)*512);
 	char* resource = malloc(sizeof(char)*512);
+	char* method = malloc(sizeof(char)*32);
+	char* protocol = malloc(sizeof(char)*32);
 	int n = 0;
 
 	for(;;){
+		
 		if((receivedMsgSize = recv(client->socketfd, request, 512, 0)) < 0)
 			perror("Error receiving message\n");
 		request[strlen(request)-1] = '\0';
+		do{	
+			if((receivedMsgSize = recv(client->socketfd, next_request, 512, 0)) < 0)
+			perror("Error receiving message\n");
+		}
+		while(strcmp(next_request, "\n") != 0);
+
+		printf("%s\n", request);
+		method = strtok(request, " ");
+		resource = strtok(NULL, " ");
+		protocol = strtok(NULL, " ");
 		response = "HTTP/1.0 200 OK";
-		resource = "/index.html";
+	
 		print_log(++n, inet_ntoa(client->addrinfo->sin_addr), ntohs(client->addrinfo->sin_port), request, response, resource);
 		send(client->socketfd, response, strlen(response), 0);
 		send(client->socketfd, "\n", 1, 0);
@@ -118,6 +131,7 @@ int main(int argc, char** argv){
 		threadarg.socketfd = clientSock;
 		threadarg.addrinfo = &client;
 		pthread_create(&tid, 0, handle_connection, &threadarg);
+		
 	}
 	
 	
