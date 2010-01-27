@@ -6,6 +6,7 @@
 #include<arpa/inet.h>
 #include<stdio.h>
 #include<stdlib.h>
+#include<ctype.h>
 #include<sys/socket.h>
 #include<sys/types.h>
 #include<unistd.h>
@@ -21,7 +22,7 @@ struct sock_data{
 };
 
 void print_log(int seqNo, char* clientAddr, int port, char* message, char* response, char* resource);
-void handle_connection(struct sock_data*);
+void handle_connection(struct sock_data*, int seqNo, char* path);
 
 void print_log(int seqNo, char* clientAddr, int port, char* message, char* response, char* resource){
 	time_t time_val;
@@ -30,41 +31,87 @@ void print_log(int seqNo, char* clientAddr, int port, char* message, char* respo
 	time(&time_val);
 	tmstring = localtime(&time_val);
 	strftime(timestring, sizeof(timestring), "%Y %b %d %T", tmstring);
-	printf("Seq no. %d %s %s:%d %s;%s;\n%s\n", seqNo, timestring, clientAddr, port, message, response, resource);
+	printf("Seq no. %d %s %s:%d %s; %s;\n%s\n", seqNo, timestring, clientAddr, port, message, response, resource);
 	
 }
-void handle_connection(struct sock_data* client){
+void handle_connection(struct sock_data* client, int seqNo, char* path){
 	
 	int receivedMsgSize;
 	char* request = malloc(sizeof(char)*512);
+	struct stat stbuf;
+	char* request_line = malloc(sizeof(char)*32);
 	char* next_request = malloc(sizeof(char)*512);
 	char* response = malloc(sizeof(char)*512);
 	char* resource = malloc(sizeof(char)*512);
 	char* method = malloc(sizeof(char)*32);
 	char* protocol = malloc(sizeof(char)*32);
-	int n = 0;
-
-	for(;;){
-		
-		if((receivedMsgSize = recv(client->socketfd, request, 512, 0)) < 0)
-			perror("Error receiving message\n");
-		request[strlen(request)-1] = '\0';
-		do{	
-			if((receivedMsgSize = recv(client->socketfd, next_request, 512, 0)) < 0)
-			perror("Error receiving message\n");
-		}
-		while(strcmp(next_request, "\n") != 0);
-
-		printf("%s\n", request);
-		method = strtok(request, " ");
-		resource = strtok(NULL, " ");
-		protocol = strtok(NULL, " ");
-		response = "HTTP/1.0 200 OK";
 	
-		print_log(++n, inet_ntoa(client->addrinfo->sin_addr), ntohs(client->addrinfo->sin_port), request, response, resource);
-		send(client->socketfd, response, strlen(response), 0);
-		send(client->socketfd, "\n", 1, 0);
+	//Header Responses
+	char* bad_request = "HTTP/1.0 400 Bad Request";
+	char* ok_request = "HTTP/1.0 200 OK";
+	char* forbidden_request = "HTTP/1.0 403 Forbidden";
+	char* not_found_request = "HTTP/1.0 404 Not Found";
+
+	if((receivedMsgSize = recv(client->socketfd, request, 512, 0)) < 0)
+		perror("Error receiving message\n");
+	do{	
+		if((receivedMsgSize = recv(client->socketfd, next_request, 512, 0)) < 0)
+		perror("Error receiving message\n");
 	}
+	while(strcmp(next_request, "\n") != 0);
+
+	if(request != NULL){
+		if(strcpy(request_line, request) == NULL)
+			perror("strcpy");
+		method = strtok(request, " ");
+	}
+	//get rid of the \n character
+
+	request_line[strlen(request_line)-1] = '\0';
+	resource = strtok(NULL, " ");
+	char* full_path = malloc(sizeof(char)*512);
+	
+	if(strcat(full_path, path) == NULL)
+		perror("strcat");
+	if(strcat(full_path, resource) == NULL)
+		perror("strcat");
+	printf("%s\n", full_path);
+	protocol = strtok(NULL, " ");
+	protocol[strlen(protocol)-1] = '\0';
+
+	if((method == NULL)||(resource == NULL) || (protocol == NULL))
+		response = bad_request;
+	else if(strcmp(method, "\n") == 0)
+		response = bad_request;
+	else{	
+		//make method and http version case insensitive
+		int i = 0;
+		while(method[i] != '\0'){
+			method[i] = toupper(method[i]);
+			i++;
+		}
+		int j = 0;
+		while(j < 4){
+			protocol[j] = toupper(protocol[j]);
+			j++;
+		}
+	}
+	if((strcmp(method, "GET") != 0)||(strcmp(protocol, "HTTP/1.0") != 0))
+		response = bad_request;
+	else
+		response = ok_request;
+
+	//check to see if the file is in the server root path
+	if(resource[0] == '.')
+		response = forbidden_request;
+	else if(stat(full_path, &stbuf) == -1)
+		response = not_found_request;
+	
+	print_log(seqNo, inet_ntoa(client->addrinfo->sin_addr), ntohs(client->addrinfo->sin_port), request_line, response, full_path);
+	send(client->socketfd, response, strlen(response), 0);
+	send(client->socketfd, "\n", 1, 0);
+	close(client->socketfd);
+
 }
 int main(int argc, char** argv){
 
@@ -72,6 +119,7 @@ int main(int argc, char** argv){
 	int serverSock, clientSock;
 	int optval = 1;
 	struct sockaddr_in client, server;
+	int seq = 0;
 	struct stat stbuf;
 	socklen_t length = sizeof(struct sockaddr);
 
@@ -130,10 +178,10 @@ int main(int argc, char** argv){
 		}
 		threadarg.socketfd = clientSock;
 		threadarg.addrinfo = &client;
-		pthread_create(&tid, 0, handle_connection, &threadarg);
+		handle_connection(&threadarg, ++seq, argv[2]);
+		//pthread_create(&tid, 0, handle_connection, &threadarg);
 		
 	}
-	
-	
+	close(serverSock);
 	return 0;
 }
