@@ -7,7 +7,7 @@ OFILES = sws.o
 PROJECT = sws
 
 all: $(OFILES)
-		$(CC) $(CFLAGS) $(PROJECT) $(OFILES) -lpthread
+		$(CC) $(CFLAGS) $(PROJECT) $(OFILES) 
 
 sws.o: sws.c
 		$(CC) $(OFLAGS) sws.c
