@@ -5,6 +5,7 @@
 
 #include<arpa/inet.h>
 #include<stdio.h>
+#include<ctype.h>
 #include<stdlib.h>
 #include<ctype.h>
 #include<sys/socket.h>
@@ -15,11 +16,13 @@
 #include<fcntl.h>
 #include<sys/stat.h>
 #include<pthread.h>
+#include<sys/wait.h>
 
 struct sock_data{
 	int socketfd;
 	struct sockaddr_in* addrinfo;
 };
+
 
 void print_log(int seqNo, char* clientAddr, int port, char* message, char* response, char* resource);
 void handle_connection(struct sock_data*, int seqNo, char* path);
@@ -47,10 +50,10 @@ void handle_connection(struct sock_data* client, int seqNo, char* path){
 	char* protocol = malloc(sizeof(char)*32);
 	
 	//Header Responses
-	char* bad_request = "HTTP/1.0 400 Bad Request";
-	char* ok_request = "HTTP/1.0 200 OK";
-	char* forbidden_request = "HTTP/1.0 403 Forbidden";
-	char* not_found_request = "HTTP/1.0 404 Not Found";
+	char* bad_request = "HTTP/1.0 400 Bad Request\r";
+	char* ok_request = "HTTP/1.0 200 OK\r";
+	char* forbidden_request = "HTTP/1.0 403 Forbidden\r";
+	char* not_found_request = "HTTP/1.0 404 Not Found\r";
 
 	if((receivedMsgSize = recv(client->socketfd, request, 512, 0)) < 0)
 		perror("Error receiving message\n");
@@ -96,6 +99,7 @@ void handle_connection(struct sock_data* client, int seqNo, char* path){
 			j++;
 		}
 	}
+
 	if((strcmp(method, "GET") != 0)||(strcmp(protocol, "HTTP/1.0") != 0))
 		response = bad_request;
 	else
@@ -109,20 +113,27 @@ void handle_connection(struct sock_data* client, int seqNo, char* path){
 	
 	print_log(seqNo, inet_ntoa(client->addrinfo->sin_addr), ntohs(client->addrinfo->sin_port), request_line, response, full_path);
 	send(client->socketfd, response, strlen(response), 0);
-	send(client->socketfd, "\n", 1, 0);
+	send(client->socketfd, "\r\n", 1, 0);
 	close(client->socketfd);
-
 }
+
 int main(int argc, char** argv){
 
-	pthread_t tid;
 	int serverSock, clientSock;
 	int optval = 1;
 	struct sockaddr_in client, server;
 	int seq = 0;
 	struct stat stbuf;
 	socklen_t length = sizeof(struct sockaddr);
+	fd_set readfds;
+	struct timeval tv;
 
+	tv.tv_sec = 0;
+	tv.tv_usec = 0;
+
+	FD_ZERO(&readfds);
+	FD_SET(STDIN_FILENO, &readfds);
+	
 	if(argc != 3){
 		printf("Incorrect number of parameters!\nUsage: ./sws <port> <directory>\n");
 		return -1;
@@ -137,8 +148,9 @@ int main(int argc, char** argv){
 	}
 	//populate the struct for the address information
 	server.sin_family = AF_INET;
-	//fill in the local ip address of the server automatically
+	//fill in the local ip address of the server
 	server.sin_addr.s_addr = htonl(INADDR_ANY);
+//	server.sin_addr.s_addr = inet_addr("10.10.1.100");
 	server.sin_port = htons(atoi(argv[1]));
 
 /* BIND THE SOCKET */
@@ -167,21 +179,26 @@ int main(int argc, char** argv){
 	printf("press 'q' to quit ...\n");
 
 	//accept connections
-
-	for(;;){
-		
-		struct sock_data threadarg;		
-
-		if((clientSock = accept(serverSock, (struct sockaddr*)&client, &length)) == -1){
-			perror("Could not accept client\n");
-			return -1;
-		}
-		threadarg.socketfd = clientSock;
-		threadarg.addrinfo = &client;
-		handle_connection(&threadarg, ++seq, argv[2]);
-		//pthread_create(&tid, 0, handle_connection, &threadarg);
-		
+	struct sock_data threadarg;		
+for(;;){
+	if((clientSock = accept(serverSock, (struct sockaddr*)&client, &length)) == -1){
+		perror("Could not accept client\n");
+		return -1;
 	}
+	threadarg.socketfd = clientSock;
+	threadarg.addrinfo = &client;
+	handle_connection(&threadarg, ++seq, argv[2]);
+}
+/*	
+	for(;;){
+		if((select(STDIN_FILENO, &readfds, NULL, NULL, &tv)) == -1)
+			perror("select");
+		if(FD_ISSET(STDIN_FILENO, &readfds)){
+			if(getchar() == 'q')
+				break;
+		}
+	}		
+*/
 	close(serverSock);
 	return 0;
 }
