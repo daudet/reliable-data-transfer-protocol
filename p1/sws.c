@@ -24,25 +24,24 @@ struct sock_data{
 	char* path;
 };
 
-void print_log(int seqNo, char* clientAddr, int port, char* message, char* response, char* resource);
+void print_log(int seqNo, char* clientAddr, int port, char* method, char* resource, char* protocol, char* response, char* full_resource);
 void handle_request(struct sock_data*, int seqNo, char* path);
 void handle_connection(int socketfd, char* path, int seqNo);
 void send_response(int socketfd, char* response, char* resource);
+void send_file(int socketfd, char* resource);
 
-void print_log(int seqNo, char* clientAddr, int port, char* message, char* response, char* resource){
+void print_log(int seqNo, char* clientAddr, int port, char* method, char* resource, char* protocol, char* response, char* full_resource){
 	time_t time_val;
 	struct tm* tmstring;
 	char timestring[256];
 	time(&time_val);
 	tmstring = localtime(&time_val);
 	strftime(timestring, sizeof(timestring), "%Y %b %d %T", tmstring);
-	printf("Seq no. %d %s %s:%d %s; %s;\n%s\n", seqNo, timestring, clientAddr, port, message, response, resource);
+	printf("Seq no. %d %s %s:%d %s %s %s; %s;\n%s\n", seqNo, timestring, clientAddr, port, method, resource, protocol, response, full_resource);
 }
 void handle_request(struct sock_data* client, int seqNo, char* path){
 	
 	struct stat stbuf;
-	time_t t;
-	int receivedMsgSize;
 	char* request = malloc(sizeof(char)*128);
 	char* request_line = malloc(sizeof(char)*128);
 	char* next_request = malloc(sizeof(char)*128);
@@ -54,9 +53,7 @@ void handle_request(struct sock_data* client, int seqNo, char* path){
 	if((memset(full_path, '\0', 128)) == NULL){
 		printf("error zeroing out path buffer\n");
 	}
-	char* date;
 	//Header Responses
-	
 	char* response;
 	char* bad_request = "HTTP/1.0 400 Bad Request";
 	char* ok_request = "HTTP/1.0 200 OK";
@@ -66,17 +63,15 @@ void handle_request(struct sock_data* client, int seqNo, char* path){
 	printf("handling new request...\n");
 	if(recv(client->socketfd, request, 128, 0) < 0)
 		perror("Error receiving message\n");
-	
-	printf("request: %s\n", request);
 
 	//copy the original request string
 	if(strncpy(request_line, request, strlen(request)) == NULL)
 		perror("strncpy");
 
-	//take off the \r and \n from the request line
+	//check to see if there is a blank line after the request line
 	if(strstr(request, "\r\n\r\n") != NULL){
-		printf("there was no blank line, keep reading...\n");
 	}
+	//if not we need to receive more info until we read a blank line
 	else{	
 		do{
 			if(recv(client->socketfd, next_request, 128, 0) < 0){
@@ -86,13 +81,10 @@ void handle_request(struct sock_data* client, int seqNo, char* path){
 	}
 	if(strlen(request) > 14){
 		//parse the request for the method, resource and protocol
-		if(sscanf(request_line, "%s %s %s\r\n\r\n", method, resource, protocol) != 3){
+		if(sscanf(request_line, "%s %s %s", method, resource, protocol) != 3){
 			printf("Error with parsing the request header\n");
 			return;
 		}
-		printf("%s\n", request_line);
-		//remove the newline character
-		request[strlen(request)-1] = '\0';
 		if((method == NULL)||(resource == NULL) || (protocol == NULL))
 			response = bad_request;
 		else{	
@@ -124,25 +116,22 @@ void handle_request(struct sock_data* client, int seqNo, char* path){
 			printf("strncpy failed\n");
 		printf("full path: %s\n", full_path);
 		//get default index.html file
-		if((strlen(resource) < 2) && (strncmp(resource, "/", 1) == 0)){
+		if((strlen(resource) == 1) && (strncmp(resource, "/", 1) == 0)){
 			if(strncat(full_path, "/index.html", 11) == NULL)
-				perror("strcat");
-			printf("here\n");
+				perror("strncat");
 		}	
 		else{
 			if(strncat(full_path, resource, strlen(resource)) == NULL)
 				perror("strncat");
 		}
-		printf("full path: %s\n", full_path);
-
 		//check to see if the file is in the server root path
-		if(resource[0] == '.')
+		if((strstr(resource, "../") != NULL) || (strstr(resource, "/..") != NULL))
 			response = forbidden_request;
 		else if(stat(full_path, &stbuf) == -1)
 			response = not_found_request;
 	}
 	//print the server log for the request
-	print_log(seqNo, inet_ntoa(client->addrinfo->sin_addr), ntohs(client->addrinfo->sin_port), request, response, full_path);
+	print_log(seqNo, inet_ntoa(client->addrinfo->sin_addr), ntohs(client->addrinfo->sin_port), method, resource, protocol, response, full_path);
 	//send the HTTP response
 	send_response(client->socketfd, response, full_path);
 	//free all dynamically allocated memory
@@ -154,31 +143,79 @@ void handle_request(struct sock_data* client, int seqNo, char* path){
 	free(full_path);
 	free(protocol);
 	close(client->socketfd);
-	return;
 }
 void send_response(int socketfd, char* response, char* resource){
 	time_t t;
 	char* date = malloc(sizeof(char)*48);
+	char* extension = malloc(sizeof(char)*32);
+	char* content_type;
+
+	if((memset(date, '\0', 48)) == NULL){
+		printf("error zeroing out path buffer\n");
+	}
 	if(send(socketfd, response, strlen(response), 0) < 0)
 		perror("send");
 	if(send(socketfd, "\r\n", 2, 0) < 0)
 		perror("send");
+	//fill the time_t parameter with the current time
 	time(&t);
+	//convert the time to GMT
 	char* gmt_time = asctime(gmtime(&t));
 	if(strncpy(date, "Date: ", 6) == NULL)
 		perror("strncpy");
 	if(strncat(date, gmt_time, strlen(gmt_time)) == NULL)
 		perror("strncpy");
-
+	//remove '\n' char from end of date string
 	date[strlen(date)-1] = ' ';
 	if(strncat(date, "GMT\r\n", 6) == NULL)
 		perror("strncpy");
-	printf("%s\n", date);
 	send(socketfd, date, strlen(date), 0);
-	send(socketfd, "Content-Type: \r\n", 17, 0);
+	if(sscanf(resource, "%*[^'.'].%s", extension) != 1){
+		printf("There was an error scanning the extension\n");
+	}
+	
+	if(strncmp(extension, "html", 4) == 0)
+		content_type = "Content-Type: text/html\r\n";
+	else if(strncmp(extension, "jpg", 4) == 0)
+		content_type = "Content-Type: image/jpeg\r\n";
+	else if(strncmp(extension, "txt", 3) == 0)
+		content_type = "Content-Type: text/plain\r\n";
+	else if(strncmp(extension, "pdf", 3) == 0)
+		content_type = "Content-Type: text/pdf\r\n";
+	else
+		content_type = "Content-Type: unknown\r\n";
+	
+	send(socketfd, content_type, strlen(content_type), 0);
 	send(socketfd, "\r\n", 2, 0);
-	send(socketfd, "*********resource*********\r\n", 28, 0);
-	return;
+	send_file(socketfd, resource);
+	free(date);
+	free(extension);
+}
+void send_file(int socketfd, char* resource){
+	char* buffer = malloc(sizeof(char)*1460);
+	struct stat stbuf;
+	int amount_read;
+	int total_sent = 0;
+	int buffer_fd; 
+	if(stat(resource, &stbuf) == -1){
+		printf("file does not exist!\n");
+		return;
+	}
+	printf("file size: %jd\n", (intmax_t)stbuf.st_size);
+	if((buffer_fd = open(resource, O_RDONLY)) == -1){
+		perror("open");
+		return;
+	}
+	while((amount_read = read(buffer_fd, buffer, 1460)) > 0){
+		total_sent += send(socketfd, buffer, amount_read, 0);
+	}
+	printf("total sent: %d\n", total_sent);
+	if(total_sent == (int)stbuf.st_size)
+		printf("The file was sent successfully\n");
+	else
+		printf("The file was not sent successfully\n");
+	close(buffer_fd);
+	free(buffer);
 }
 void handle_connection(int socketfd, char* path, int seqNo){
 	
@@ -252,6 +289,7 @@ int main(int argc, char** argv){
 
 	//accept connections
 	for(;;){
+		//timeout value for select(): 1 second 0 milliseconds
 		tv.tv_sec = 1;
 		tv.tv_usec = 0;
 
