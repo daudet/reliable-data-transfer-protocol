@@ -1,0 +1,46 @@
+David Audet V00150102
+January 29th 2010
+CSc 361 Lab B02
+
+Design
+	
+	For this assignment I began with a simple echo server implemented in the C socket
+	API. From there I gradually built more functionality into the simple web server
+	changing the echo messages into HTTP requests and responses. I have decided to make
+	the simple web server handle only non-persistent HTTP connections and handle only
+	one client HTTP request at any given time.
+
+Code Structure
+
+	In my main function connection settings are initialized and socket creation, binding and
+	listening is performed. Using select() I have setup file handles to check for
+	activities on. In a continual for loop I am checking to see if there is any
+	activity on the STDIN or the server socket file handles. If there is activity
+	on the socket, I handle that request with a function call to handle_request which
+	will accept the connecting client.
+	If there is activity on the STDIN file handle, if the input was a 'q', the server
+	will exit gracefully, releasing all resources.
+
+	The function handle_connection once called will accept the client connection
+	and call the function handle_request. Handle_request will parse the request header
+	and see if the request is valid, if so it will generate a response and send it
+	to the client with send_response.
+
+	Send_response will format the response header and create a date and content-type
+	header which will be sent to the client. At this point the function send_file
+	will be called to deliver the requested resource file to the client.
+
+	Send_file will open the requested resource file and read a maximum of 1460 bytes
+	(max segment size in TCP connection) and send the bytes to the client. This 
+	process will repeat until the entire file has been sent to the client.
+
+	Once all of that is completed print_log will be called which will print detailed
+	information about the request in a log on the server machine.
+
+	Once the request has been served(successfully or not), the for(;;) loop will continue
+	in main until either 'q' is pressed or a new connection is made to the server.
+
+References
+
+	http://www.lowtek.com/sockets/select.html
+	http://beej.us/guide/bgnet/output/html/multipage/index.html
