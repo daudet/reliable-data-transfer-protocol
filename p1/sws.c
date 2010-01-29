@@ -43,15 +43,15 @@ void handle_request(struct sock_data* client, int seqNo, char* path){
 	struct stat stbuf;
 	time_t t;
 	int receivedMsgSize;
-	char* request = malloc(sizeof(char)*32);
-	char* request_line = malloc(sizeof(char)*32);
-	char* next_request = malloc(sizeof(char)*32);
-	char* resource = malloc(sizeof(char)*32);
-	char* method = malloc(sizeof(char)*32);
-	char* protocol = malloc(sizeof(char)*32);
-	char* full_path = malloc(sizeof(char)*64);
+	char* request = malloc(sizeof(char)*128);
+	char* request_line = malloc(sizeof(char)*128);
+	char* next_request = malloc(sizeof(char)*128);
+	char* resource = malloc(sizeof(char)*128);
+	char* method = malloc(sizeof(char)*128);
+	char* protocol = malloc(sizeof(char)*128);
+	char* full_path = malloc(sizeof(char)*128);
 	
-	if((memset(full_path, '\0', 64)) == NULL){
+	if((memset(full_path, '\0', 128)) == NULL){
 		printf("error zeroing out path buffer\n");
 	}
 	char* date;
@@ -64,7 +64,7 @@ void handle_request(struct sock_data* client, int seqNo, char* path){
 	char* not_found_request = "HTTP/1.0 404 Not Found";
 
 	printf("handling new request...\n");
-	if(recv(client->socketfd, request, 512, 0) < 0)
+	if(recv(client->socketfd, request, 128, 0) < 0)
 		perror("Error receiving message\n");
 	
 	printf("request: %s\n", request);
@@ -74,11 +74,17 @@ void handle_request(struct sock_data* client, int seqNo, char* path){
 		perror("strncpy");
 
 	//take off the \r and \n from the request line
-	if(strstr(request, "\r\n") == NULL){
-		printf("there was no line feed or carriage return\n");
-		response = bad_request;
+	if(strstr(request, "\r\n\r\n") != NULL){
+		printf("there was no blank line, keep reading...\n");
 	}
-	else if(strlen(request) > 14){
+	else{	
+		do{
+			if(recv(client->socketfd, next_request, 128, 0) < 0){
+				perror("recv");
+			}
+		}while(strncmp(next_request, "\n", 1) != 0);
+	}
+	if(strlen(request) > 14){
 		//parse the request for the method, resource and protocol
 		if(sscanf(request_line, "%s %s %s\r\n\r\n", method, resource, protocol) != 3){
 			printf("Error with parsing the request header\n");
@@ -163,8 +169,11 @@ void send_response(int socketfd, char* response, char* resource){
 		perror("strncpy");
 	if(strncat(date, gmt_time, strlen(gmt_time)) == NULL)
 		perror("strncpy");
-	if(strncat(date, " GMT\r\n", 6) == NULL)
+
+	date[strlen(date)-1] = ' ';
+	if(strncat(date, "GMT\r\n", 6) == NULL)
 		perror("strncpy");
+	printf("%s\n", date);
 	send(socketfd, date, strlen(date), 0);
 	send(socketfd, "Content-Type: \r\n", 17, 0);
 	send(socketfd, "\r\n", 2, 0);
