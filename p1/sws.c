@@ -160,9 +160,12 @@ void handle_request(struct sock_data* client, int seqNo, char* path){
 		else if(stat(full_path, &stbuf) == -1)
 			response = not_found_request;
 
-		if((open(full_path, O_RDONLY)) == -1){
-			perror("open");
-			response = forbidden_request;
+		//if not a bad request
+		if((strncmp(response, bad_request, strlen(bad_request)) != 0) && (strncmp(response, not_found_request, strlen(not_found_request)) != 0)){
+			if((open(full_path, O_RDONLY)) == -1){
+				perror("open");
+				response = forbidden_request;
+			}
 		}
 	}
 	//print the server log for the request
@@ -254,8 +257,9 @@ void send_response(int socketfd, char* response, char* resource){
 		perror("send");
 		return;
 	}
-	//send the file
-	send_file(socketfd, resource);
+	//send the file only if the response is 200 OK
+	if(strstr(response, "200") != NULL)
+		send_file(socketfd, resource);
 	//free dynamically allocated memory
 	free(date);
 	free(extension);
@@ -358,8 +362,8 @@ int main(int argc, char** argv){
 	//populate the struct for the address information
 	server.sin_family = AF_INET;
 	//fill in the local ip address of the server
-	server.sin_addr.s_addr = htonl(INADDR_ANY);
-//	server.sin_addr.s_addr = inet_addr("10.10.1.100");
+//	server.sin_addr.s_addr = htonl(INADDR_ANY);
+	server.sin_addr.s_addr = inet_addr("10.10.1.100");
 	server.sin_port = htons(atoi(argv[1]));
 
 	//Bind the socket
