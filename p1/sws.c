@@ -240,7 +240,7 @@ int main(int argc, char** argv){
 	int seqNo = 0;
 	struct sockaddr_in server;
 	struct stat stbuf;
-	fd_set fd_set;
+	fd_set fds;
 	struct timeval tv;
 
 	if(argc != 3){
@@ -293,22 +293,22 @@ int main(int argc, char** argv){
 		tv.tv_sec = 1;
 		tv.tv_usec = 0;
 
-		FD_ZERO(&fd_set);
-		FD_SET(STDIN_FILENO, &fd_set);
+		FD_ZERO(&fds);
+		FD_SET(STDIN_FILENO, &fds);
 		
 		//add serverSock to the list of fds to watch
-		FD_SET(serverSock, &fd_set);
+		FD_SET(serverSock, &fds);
 
-		if((select(serverSock+1, &fd_set, NULL, NULL, &tv)) < 0)
+		if((select(serverSock+1, &fds, NULL, NULL, &tv)) < 0)
 			perror("select");
 		else{	
-			if(FD_ISSET(STDIN_FILENO, &fd_set)){
+			if(FD_ISSET(STDIN_FILENO, &fds)){
 				if(getchar() == 'q'){
 					printf("The server is going down now...\n");
 					break;
 				}
 			}
-			if(FD_ISSET(serverSock, &fd_set)){
+			if(FD_ISSET(serverSock, &fds)){
 				handle_connection(serverSock, argv[2], ++seqNo);
 			}
 		}	
