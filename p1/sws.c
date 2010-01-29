@@ -15,8 +15,7 @@
 #include<time.h>
 #include<fcntl.h>
 #include<sys/stat.h>
-#include<pthread.h>
-#include<sys/wait.h>
+
 //struct to hold important connected client information
 struct sock_data{
 	int socketfd;
@@ -26,9 +25,9 @@ struct sock_data{
 //function prototypes
 void print_log(int seqNo, char* clientAddr, int port, char* method, char* resource, char* protocol, char* response, char* full_resource);
 void handle_request(struct sock_data*, int seqNo, char* path);
-void handle_connection(int socketfd, char* path, int seqNo);
 void send_response(int socketfd, char* response, char* resource);
 void send_file(int socketfd, char* resource);
+void handle_connection(int socketfd, char* path, int seqNo);
 
 /***************print_log*********************************
  *	This function will print out the log information
@@ -108,7 +107,6 @@ void handle_request(struct sock_data* client, int seqNo, char* path){
 		//parse the request for the method, resource and protocol
 		if(sscanf(request_line, "%s %s %s", method, resource, protocol) != 3){
 			printf("Error parsing the request header\n");
-			return;
 		}
 		if((method == NULL)||(resource == NULL) || (protocol == NULL))
 			response = bad_request;
@@ -130,7 +128,7 @@ void handle_request(struct sock_data* client, int seqNo, char* path){
 		response = bad_request;
 
 	//Check for correct method and protocol	
-	if((strncmp(method, "GET", 3) != 0)||(strncmp(protocol, "HTTP/1.0", 8) != 0))
+	if((strncmp(method, "GET", 3) != 0)||(strncmp(protocol, "HTTP/1.0", 8) != 0)||(strncmp(resource, "/", 1) != 0))
 		response = bad_request;
 	else
 		response = ok_request;
@@ -157,9 +155,13 @@ void handle_request(struct sock_data* client, int seqNo, char* path){
 		//check to see if the file is in the server root path
 		if((strstr(resource, "../") != NULL) || (strstr(resource, "/..") != NULL))
 			response = bad_request;
-		else if(stat(full_path, &stbuf) == -1)
+		else if(stat(full_path, &stbuf) == -1){
 			response = not_found_request;
-
+		}	
+		//if the resource is a directory return 400
+		if((stbuf.st_mode & S_IFMT) == S_IFDIR){
+				response = bad_request;
+		}
 		//if not a bad request
 		if((strncmp(response, bad_request, strlen(bad_request)) != 0) && (strncmp(response, not_found_request, strlen(not_found_request)) != 0)){
 			if((open(full_path, O_RDONLY)) == -1){
@@ -180,6 +182,7 @@ void handle_request(struct sock_data* client, int seqNo, char* path){
 	free(method);
 	free(full_path);
 	free(protocol);
+	//close the client socket
 	close(client->socketfd);
 }
 /***********send_response***********************************
@@ -314,7 +317,7 @@ void send_file(int socketfd, char* resource){
  *	socket
  *	INPUT:	client socket file descriptor, server's path and 
  * 			request sequence number
- *	OUTPUT:	will call helper function handle_request to deal
+ *	OUTPUT:	call to helper function handle_request to deal
  *			with the getting the HTTP request and returning 
  *			the HTTP response
  ***************************************************************/
@@ -377,14 +380,14 @@ int main(int argc, char** argv){
 		return -1;
 	}
 	
-	//Check for valid port number
+	//Check for valid port number(max tcp port is 65535
 	if((atoi(argv[1]) < 1025) || (atoi(argv[1]) > 65535)){
-		perror("Invalid port number for this server");
+		printf("Invalid port number for this server\n");
 		return -1;
 	}
 	//Check for a valid serving directory
 	if((stat(argv[2], &stbuf)) == -1){
-		perror("Invalid directory to serve");
+		printf("Invalid directory to serve\n");
 		return -1;
 	}
 	printf("sws is running on TCP port %d and serving %s\n", atoi(argv[1]), argv[2]);

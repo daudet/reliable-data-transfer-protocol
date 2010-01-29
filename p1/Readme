@@ -12,13 +12,13 @@ Design
 
 Code Structure
 
-	In my main function connection settings are initialized and socket creation, binding and
-	listening is performed. Using select() I have setup file handles to check for
-	activities on. In a continual for loop I am checking to see if there is any
+	In my main function, connection settings are initialized and socket creation, binding and
+	listening is performed. Using select() I have setup file handles to monitor activity.	
+	In a continual for loop I am checking to see if there is any
 	activity on the STDIN or the server socket file handles. If there is activity
 	on the socket, I handle that request with a function call to handle_request which
 	will accept the connecting client.
-	If there is activity on the STDIN file handle, if the input was a 'q', the server
+	If there is activity on the STDIN file handle, and if the input was a 'q', the server
 	will exit gracefully, releasing all resources.
 
 	The function handle_connection once called will accept the client connection
@@ -34,11 +34,17 @@ Code Structure
 	(max segment size in TCP connection) and send the bytes to the client. This 
 	process will repeat until the entire file has been sent to the client.
 
-	Once all of that is completed print_log will be called which will print detailed
+	Once completed, print_log will be called which will print detailed
 	information about the request in a log on the server machine.
 
 	Once the request has been served(successfully or not), the for(;;) loop will continue
 	in main until either 'q' is pressed or a new connection is made to the server.
+
+Note:	I have implemented only a few content-type headers
+			html => Content-Type: text/html
+			jpg  => Content-Type: image/jpeg
+			txt  => Content-Type: text/plain
+			pdf  => Content-Type: text/pdf
 
 References
 
