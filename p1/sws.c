@@ -23,11 +23,11 @@ struct sock_data{
 	char* path;
 };
 //function prototypes
-void print_log(int seqNo, char* clientAddr, int port, char* method, char* resource, char* protocol, char* response, char* full_resource);
-void handle_request(struct sock_data*, int seqNo, char* path);
-void send_response(int socketfd, char* response, char* resource);
-void send_file(int socketfd, char* resource);
-void handle_connection(int socketfd, char* path, int seqNo);
+int print_log(int seqNo, char* clientAddr, int port, char* method, char* resource, char* protocol, char* response, char* full_resource);
+int handle_request(struct sock_data*, int seqNo, char* path);
+int send_response(int socketfd, char* response, char* resource);
+int send_file(int socketfd, char* resource);
+int handle_connection(int socketfd, char* path, int seqNo);
 
 /***************print_log*********************************
  *	This function will print out the log information
@@ -37,7 +37,7 @@ void handle_connection(int socketfd, char* path, int seqNo);
  *			sent it, when the request was handled and
  * 			what the response was.
  ********************************************************/
-void print_log(int seqNo, char* clientAddr, int port, char* method, char* resource, char* protocol, char* response, char* full_resource){
+int print_log(int seqNo, char* clientAddr, int port, char* method, char* resource, char* protocol, char* response, char* full_resource){
 	time_t time_val;
 	//struct to hold the time information
 	struct tm* tmstring;
@@ -47,6 +47,7 @@ void print_log(int seqNo, char* clientAddr, int port, char* method, char* resour
 	//format the time 
 	strftime(timestring, sizeof(timestring), "%Y %b %d %T", tmstring);
 	printf("Seq no. %d %s %s:%d %s %s %s; %s;\n%s\n", seqNo, timestring, clientAddr, port, method, resource, protocol, response, full_resource);
+	return 0;
 }
 /************handle_request*****************************
  *	This function will parse the HTTP request and 
@@ -59,7 +60,7 @@ void print_log(int seqNo, char* clientAddr, int port, char* method, char* resour
  * 			to the client through helper functions
  *			and the connection will be closed
  *******************************************************/
-void handle_request(struct sock_data* client, int seqNo, char* path){
+int handle_request(struct sock_data* client, int seqNo, char* path){
 	
 	struct stat stbuf;
 	char* request = malloc(sizeof(char)*128);
@@ -83,12 +84,12 @@ void handle_request(struct sock_data* client, int seqNo, char* path){
 
 	if(recv(client->socketfd, request, 128, 0) < 0){
 		perror("Error receiving message\n");
-		return;
+		return -1;
 	}
 	//copy the original request string
 	if(strncpy(request_line, request, strlen(request)) == NULL){
 		perror("strncpy");
-		return;
+		return -1;
 	}
 	//check to see if there is a blank line after the request line
 	if(strstr(request, "\r\n\r\n") != NULL){
@@ -98,7 +99,7 @@ void handle_request(struct sock_data* client, int seqNo, char* path){
 		do{
 			if(recv(client->socketfd, next_request, 128, 0) < 0){
 				perror("recv");
-				return;
+				return -1;
 			}
 		//if using nc need to look for newline and not \r\n	
 		}while(strncmp(next_request, "\n", 1) != 0);
@@ -107,6 +108,7 @@ void handle_request(struct sock_data* client, int seqNo, char* path){
 		//parse the request for the method, resource and protocol
 		if(sscanf(request_line, "%s %s %s", method, resource, protocol) != 3){
 			printf("Error parsing the request header\n");
+			return -1;
 		}
 		if((method == NULL)||(resource == NULL) || (protocol == NULL))
 			response = bad_request;
@@ -137,19 +139,19 @@ void handle_request(struct sock_data* client, int seqNo, char* path){
 	if(strncmp(response, bad_request, strlen(bad_request)) != 0){
 		if(strncpy(full_path, path, strlen(path)) == NULL){
 			printf("could not populate the full path\n");
-			return;
+			return -1;
 		}
 		//get default index.html file
 		if((strlen(resource) == 1) && (strncmp(resource, "/", 1) == 0)){
 			if(strncat(full_path, "/index.html", 11) == NULL){
 				perror("strncat");
-				return;
+				return -1;
 			}
 		}	
 		else{
 			if(strncat(full_path, resource, strlen(resource)) == NULL){
 				perror("strncat");
-				return;
+				return -1;
 			}
 		}
 		//check to see if the file is in the server root path
@@ -171,9 +173,15 @@ void handle_request(struct sock_data* client, int seqNo, char* path){
 		}
 	}
 	//print the server log for the request
-	print_log(seqNo, inet_ntoa(client->addrinfo->sin_addr), ntohs(client->addrinfo->sin_port), method, resource, protocol, response, full_path);
+	if((print_log(seqNo, inet_ntoa(client->addrinfo->sin_addr), ntohs(client->addrinfo->sin_port), method, resource, protocol, response, full_path)) == -1){
+		printf("There was an error printing the log\n");
+		return -1;
+	}
 	//send the HTTP response
-	send_response(client->socketfd, response, full_path);
+	if((send_response(client->socketfd, response, full_path)) == -1){
+		printf("There was an error sending the response to the client\n"); 
+		return -1;
+	}
 	//free all dynamically allocated memory
 	free(request);
 	free(request_line);
@@ -183,7 +191,11 @@ void handle_request(struct sock_data* client, int seqNo, char* path){
 	free(full_path);
 	free(protocol);
 	//close the client socket
-	close(client->socketfd);
+	if(close(client->socketfd) == -1){
+		printf("There was an error closing the client socket\n");
+		return -1;
+	}
+	return 0;
 }
 /***********send_response***********************************
  * 	This function will send the HTTP response to the client
@@ -193,7 +205,7 @@ void handle_request(struct sock_data* client, int seqNo, char* path){
  *			and status code, date, content-type, followed
  *			by a blank line and the request resource
  **********************************************************/
-void send_response(int socketfd, char* response, char* resource){
+int send_response(int socketfd, char* response, char* resource){
 	time_t t;
 	//char array to hold the date string
 	char* date = malloc(sizeof(char)*48);
@@ -203,42 +215,49 @@ void send_response(int socketfd, char* response, char* resource){
 	//zero out the date string
 	if((memset(date, '\0', 48)) == NULL){
 		printf("error zeroing out path buffer\n");
+		return -1;
 	}
 	//send the HTTP version and status
 	if(send(socketfd, response, strlen(response), 0) < 0){
 		perror("send");
-		return;
+		return -1;
 	}	
 	//send \r\n to end the header line
 	if(send(socketfd, "\r\n", 2, 0) < 0){
 		perror("send");
-		return;
+		return -1;
 	}
 	//fill the time_t parameter with the current time
-	time(&t);
+	if((time(&t)) == (time_t)-1){
+		printf("There was an error getting the current time\n");
+		return -1;
+	}
 	//convert the time to GMT
 	char* gmt_time = asctime(gmtime(&t));
 	if(strncpy(date, "Date: ", 6) == NULL){
 		perror("strncpy");
-		return;
+		return -1;
 	}
 	if(strncat(date, gmt_time, strlen(gmt_time)) == NULL){
 		perror("strncpy");
-		return;
+		return -1;
 	}
 	//remove '\n' char from end of date string
 	date[strlen(date)-1] = ' ';
 	if(strncat(date, "GMT\r\n", 6) == NULL){
 		perror("strncpy");
+		return -1;
 	}
 	//send the date header
 	if(send(socketfd, date, strlen(date), 0) < 0){
 		perror("send");
-		return;
+		return -1;
 	}
-	if(sscanf(resource, "%*[^'.'].%s", extension) != 1){
+	
+	if(sscanf(resource, "%*[^/]%*[^.]%*c%s", extension) != 1){
 		printf("There was an error scanning the extension\n");
 	}
+	
 	//match the content type to the file extension
 	if(strncmp(extension, "html", 4) == 0)
 		content_type = "Content-Type: text/html\r\n";
@@ -253,19 +272,23 @@ void send_response(int socketfd, char* response, char* resource){
 	//send the content type
 	if(send(socketfd, content_type, strlen(content_type), 0) < 0){
 		perror("send");
-		return;
+		return -1;
 	}
 	//send \r\n to end the content type header
 	if(send(socketfd, "\r\n", 2, 0) < 0){
 		perror("send");
-		return;
+		return -1;
 	}
 	//send the file only if the response is 200 OK
 	if(strstr(response, "200") != NULL)
-		send_file(socketfd, resource);
+		if((send_file(socketfd, resource)) == -1){
+			printf("There was an error sending the file to the client\n");
+			return -1;
+		}
 	//free dynamically allocated memory
 	free(date);
 	free(extension);
+	return 0;
 }
 /***************send_file****************************
  *	This function will send the requested resource
@@ -275,7 +298,7 @@ void send_response(int socketfd, char* response, char* resource){
  *	OUTPUT:	the resource as sent in 1460 byte chunks
  *
  ****************************************************/
-void send_file(int socketfd, char* resource){
+int send_file(int socketfd, char* resource){
 	//buffer to hold the info read from the resource file
 	char* buffer = malloc(sizeof(char)*1460);
 	//struct to hold information about the resource
@@ -287,18 +310,18 @@ void send_file(int socketfd, char* resource){
 	//check to see if the file exists
 	if(stat(resource, &stbuf) == -1){
 		printf("file does not exist!\n");
-		return;
+		return -1;
 	}
 	//open the file for reading
 	if((buffer_fd = open(resource, O_RDONLY)) == -1){
 		perror("open");
-		return;
+		return -1;
 	}
 	//read 1460 bytes from the file
 	while((amount_read = read(buffer_fd, buffer, 1460)) > 0){
 		if((amount_sent = send(socketfd, buffer, amount_read, 0)) < 0){
 			perror("send");
-			return;
+			return -1;
 		}
 		else
 			total_sent += amount_sent;
@@ -306,11 +329,16 @@ void send_file(int socketfd, char* resource){
 	//check to see if the whole file was sent successfully
 	if(total_sent == (int)stbuf.st_size)
 		printf("The file was sent successfully\n");
-	else
+	else{
 		printf("The file was not sent successfully\n");
+		close(buffer_fd);
+		free(buffer);
+		return -1;
+	}
 	//close the resource file and free the memory of the buffer
 	close(buffer_fd);
 	free(buffer);
+	return 0;
 }
 /**********************handle_connection*************************
  *	This function will accept the client connection on the 
@@ -321,7 +349,7 @@ void send_file(int socketfd, char* resource){
  *			with the getting the HTTP request and returning 
  *			the HTTP response
  ***************************************************************/
-void handle_connection(int socketfd, char* path, int seqNo){
+int handle_connection(int socketfd, char* path, int seqNo){
 	//structure to hold the client socket info	
 	struct sock_data threadarg;		
 	struct sockaddr_in client;
@@ -330,12 +358,19 @@ void handle_connection(int socketfd, char* path, int seqNo){
 	//accept the connection from the client
 	if((clientSock = accept(socketfd, (struct sockaddr*)&client, &length)) == -1){
 		perror("Could not accept client\n");
-		return;
+		return -1;
 	}
 	//populate the sock_data structure
 	threadarg.socketfd = clientSock;
 	threadarg.addrinfo = &client;
-	handle_request(&threadarg, seqNo, path);
+	if((handle_request(&threadarg, seqNo, path)) == -1){
+		printf("There was an error handling the client request\n");
+		return -1;
+		if((close(clientSock)) == -1){
+			printf("Could not close the client socket\n");
+		}
+	}
+	return 0;
 }
 int main(int argc, char** argv){
 
@@ -345,7 +380,6 @@ int main(int argc, char** argv){
 	struct sockaddr_in server;
 	struct stat stbuf;
 	fd_set fds;
-	struct timeval tv;
 	
 	//check for proper execution of sws
 	if(argc != 3){
@@ -365,8 +399,8 @@ int main(int argc, char** argv){
 	//populate the struct for the address information
 	server.sin_family = AF_INET;
 	//fill in the local ip address of the server
-//	server.sin_addr.s_addr = htonl(INADDR_ANY);
-	server.sin_addr.s_addr = inet_addr("10.10.1.100");
+	server.sin_addr.s_addr = htonl(INADDR_ANY);
+	//server.sin_addr.s_addr = inet_addr("10.10.1.100");
 	server.sin_port = htons(atoi(argv[1]));
 
 	//Bind the socket
@@ -394,33 +428,35 @@ int main(int argc, char** argv){
 	printf("press 'q' to quit ...\n");
 
 	for(;;){
-		//timeout value for select(): 1 second 0 milliseconds
-		tv.tv_sec = 1;
-		tv.tv_usec = 0;
-
-		//initialize the fd_set variable
+		//reset the list of fds
 		FD_ZERO(&fds);
 		//add stdin to the list of fds to watch
 		FD_SET(STDIN_FILENO, &fds);
 		//add serverSock to the list of fds to watch
 		FD_SET(serverSock, &fds);
 
-		if((select(serverSock+1, &fds, NULL, NULL, &tv)) < 0)
+		if((select(serverSock+1, &fds, NULL, NULL, NULL)) < 0)
 			perror("select");
 		else{	
 			//if there was input from stdin check to see if it was 'q'
 			if(FD_ISSET(STDIN_FILENO, &fds)){
-				if(getchar() == 'q'){
+				if(((fgetc(stdin) == 'q') && (fgetc(stdin) == '\n'))){
 					printf("The server is going down now...\n");
 					break;
 				}
 			}
 			//if there was activity on the socket, handle the connection
 			if(FD_ISSET(serverSock, &fds)){
-				handle_connection(serverSock, argv[2], ++seqNo);
+				if((handle_connection(serverSock, argv[2], ++seqNo)) == -1){
+					printf("There was an error handling the incoming connection\n");
+					return -1;
+				}
 			}
 		}	
 	}
-	close(serverSock);
+	if((close(serverSock)) == -1){
+		printf("There was an error closing the server socket\n");
+		return -1;
+	}
 	return 0;
 }
