@@ -387,7 +387,7 @@ int main(int argc, char** argv){
 		return -1;
 	}
 	//create a stream socket
-	if((serverSock = socket(AF_INET, SOCK_STREAM, 0)) == -1){
+	if((serverSock = socket(AF_INET, SOCK_DGRAM, 0)) == -1){
 		perror("Could not create the socket");
 		return -1;
 	}
@@ -399,18 +399,13 @@ int main(int argc, char** argv){
 	//populate the struct for the address information
 	server.sin_family = AF_INET;
 	//fill in the local ip address of the server
-	server.sin_addr.s_addr = htonl(INADDR_ANY);
-	//server.sin_addr.s_addr = inet_addr("10.10.1.100");
+	//server.sin_addr.s_addr = htonl(INADDR_ANY);
+	server.sin_addr.s_addr = inet_addr("127.0.0.1");
 	server.sin_port = htons(atoi(argv[1]));
 
 	//Bind the socket
 	if((bind(serverSock, (struct sockaddr*)&server, sizeof(server))) == -1){
 		perror("Could not bind socket");
-		return -1;
-	}
-	//Listen on the socket with backlog of 5 for the listen queue
-	if((listen(serverSock, 5)) == -1){
-		perror("Could not listen on socket");
 		return -1;
 	}
 	
@@ -424,9 +419,15 @@ int main(int argc, char** argv){
 		printf("Invalid directory to serve\n");
 		return -1;
 	}
-	printf("sws is running on TCP port %d and serving %s\n", atoi(argv[1]), argv[2]);
+	printf("rws is running on UDP port %d and serving %s\n", atoi(argv[1]), argv[2]);
 	printf("press 'q' to quit ...\n");
 
+	char buffer[11];
+	int addrlen;
+	recvfrom(serverSock, buffer, sizeof(buffer), 0, (struct sockaddr*)&server, (socklen_t*)&addrlen); 
+	printf("%s\n", buffer);
+
+	/*
 	for(;;){
 		//reset the list of fds
 		FD_ZERO(&fds);
@@ -453,7 +454,7 @@ int main(int argc, char** argv){
 				}
 			}
 		}	
-	}
+	}*/
 	if((close(serverSock)) == -1){
 		printf("There was an error closing the server socket\n");
 		return -1;
