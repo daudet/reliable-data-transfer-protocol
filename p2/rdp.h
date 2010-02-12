@@ -1,4 +1,4 @@
-/*Reliable Data Protocol
+/*Reliable Data Protocol - rdp.h
 	David Audet - V00150102
 */
 
@@ -18,10 +18,10 @@
 struct packet{
 	char* _magic_;
 	char* _type_;
-	int _seqno_;
-	int _ackno_;
-	int _length_;
-	int _size_;
+	short _seqno_;
+	short _ackno_;
+	short _length_;
+	short _size_;
 }
 
 int rdp_connect();
