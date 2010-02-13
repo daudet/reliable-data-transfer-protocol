@@ -1,4 +1,4 @@
-/*Reliable Wev Server Client
+/*Reliable Web Server Client
 	David Audet - V00150102
 */
 
@@ -20,10 +20,7 @@ int main(int argc, char** argv){
 	struct sockaddr_in sendaddr;
 	struct sockaddr_in recvaddr;
 	
-	struct mine{
-		int port;
-		char* addr;
-	};
+
 	int optval = 1;
 
 	if( argc != 6){
@@ -49,12 +46,10 @@ int main(int argc, char** argv){
 	recvaddr.sin_family = AF_INET;
 	recvaddr.sin_port = htons(atoi(argv[4]));
 	recvaddr.sin_addr.s_addr = inet_addr(argv[3]);
-	struct mine recv;
-	recv.addr = inet_addr(argv[3]);
-	recv.port = htons(atoi(argv[4]));
+	//struct to hold the receiver's address
 
 //	sendto(sockfd, "hello server", 12, 0, (struct sockaddr*)&recvaddr, sizeof(recvaddr));
-	rdp_send(sockfd, &recv);
+	rdp_send(sockfd, argv[3], argv[4]);
 	close(sockfd);
 	return 0;
 }

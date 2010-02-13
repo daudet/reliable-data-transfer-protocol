@@ -22,11 +22,11 @@ struct packet{
 	short _ackno_;
 	short _length_;
 	short _size_;
-}
+};
 
 int rdp_connect();
 int rdp_listen();
-int rdp_send();
+int rdp_send(int, char*, char*);
 int rdp_receive();
 
 int rdp_connect(){
@@ -55,7 +55,7 @@ int rdp_listen(){
 	return HTTP request to RWS
 	*/	
 }
-int rdp_send(int sockfd, struct mine* recvaddr){
+int rdp_send(int sockfd, char* addr, char* port){
 	/*
 		make packet with the pkt type(SYN, ACK, DAT, etc.), seqno, checksum, etc.
 		send over udp this packet to the server
@@ -69,12 +69,17 @@ int rdp_send(int sockfd, struct mine* recvaddr){
 		
 		return 0;
 	*/
-}
+	struct sockaddr_in recvaddr;
+	recvaddr.sin_family = AF_INET;
+	recvaddr.sin_port = htons(atoi(port));
+	recvaddr.sin_addr.s_addr = inet_addr(addr);
+	printf("%s, %s\n", port, addr);
 
+	char* message = "hello server";
+	sendto(sockfd, message, (size_t)12, 0, (struct sockaddr *)&recvaddr, sizeof(recvaddr));
+}
 int rdp_receive(){
 	/*
-		
-
-
+	
 	*/
 }

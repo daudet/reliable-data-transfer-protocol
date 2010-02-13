@@ -400,7 +400,7 @@ int main(int argc, char** argv){
 	server.sin_family = AF_INET;
 	//fill in the local ip address of the server
 	//server.sin_addr.s_addr = htonl(INADDR_ANY);
-	server.sin_addr.s_addr = inet_addr("127.0.0.1");
+	server.sin_addr.s_addr = inet_addr("10.10.1.100");
 	server.sin_port = htons(atoi(argv[1]));
 
 	//Bind the socket
@@ -422,10 +422,12 @@ int main(int argc, char** argv){
 	printf("rws is running on UDP port %d and serving %s\n", atoi(argv[1]), argv[2]);
 	printf("press 'q' to quit ...\n");
 
-	char buffer[11];
+	char* buffer = malloc(sizeof(char)*32);
 	int addrlen;
-	recvfrom(serverSock, buffer, sizeof(buffer), 0, (struct sockaddr*)&server, (socklen_t*)&addrlen); 
-	printf("%s\n", buffer);
+
+	int recv_bytes = 0;
+	recv_bytes = recvfrom(serverSock, buffer, sizeof(buffer), 0, (struct sockaddr*)&server, (socklen_t*)&addrlen); 
+	printf("%s, %d\n", buffer, recv_bytes);
 
 	/*
 	for(;;){
