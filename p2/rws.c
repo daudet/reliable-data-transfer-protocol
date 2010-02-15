@@ -1,5 +1,5 @@
-/* 	sws.c - Simple Web Server
- *	CSc 361 January 29th, 2010
+/* 	rws.c - Simple Web Server
+ *	CSc 361 February 26, 2010
  *	David Audet - V00150102
  */
 
@@ -15,6 +15,7 @@
 #include<time.h>
 #include<fcntl.h>
 #include<sys/stat.h>
+#include"rdp.h"
 
 //struct to hold important connected client information
 struct sock_data{
@@ -400,7 +401,7 @@ int main(int argc, char** argv){
 	server.sin_family = AF_INET;
 	//fill in the local ip address of the server
 	//server.sin_addr.s_addr = htonl(INADDR_ANY);
-	server.sin_addr.s_addr = inet_addr("10.10.1.100");
+	server.sin_addr.s_addr = inet_addr("127.0.0.1");
 	server.sin_port = htons(atoi(argv[1]));
 
 	//Bind the socket
@@ -422,13 +423,15 @@ int main(int argc, char** argv){
 	printf("rws is running on UDP port %d and serving %s\n", atoi(argv[1]), argv[2]);
 	printf("press 'q' to quit ...\n");
 
-	char* buffer = malloc(sizeof(char)*32);
+	char* buffer = malloc(sizeof(char) * 1024);
 	int addrlen;
-
+	packet pkt;
 	int recv_bytes = 0;
-	recv_bytes = recvfrom(serverSock, buffer, sizeof(buffer), 0, (struct sockaddr*)&server, (socklen_t*)&addrlen); 
-	printf("%s, %d\n", buffer, recv_bytes);
-
+	recv_bytes = recvfrom(serverSock, &pkt, sizeof(packet), 0, (struct sockaddr*)&server, (socklen_t*)&addrlen); 
+	printf("Server has received %d bytes\n", recv_bytes);
+	printf("Magic: %s\nType: %s\n", pkt._magic_, pkt._type_);
+	printf("Seqno: %d\nAckno: %d\n", pkt._seqno_, pkt._ackno_);
+	free(buffer);
 	/*
 	for(;;){
 		//reset the list of fds

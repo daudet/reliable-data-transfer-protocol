@@ -14,15 +14,18 @@
 #include<fcntl.h>
 #include<ctype.h>
 
+
+
 //packet information to be sent with any messages
-struct packet{
-	char* _magic_;
-	char* _type_;
-	short _seqno_;
-	short _ackno_;
-	short _length_;
-	short _size_;
-};
+typedef struct packet{
+	char  _magic_[7];	//CSC361
+	char  _type_[4];	//DAT, ACK, SYN, FIN, RST
+	short _seqno_;	//byte sequence number
+	short _ackno_;	//acknowledgement number
+	short _length_;	//length of data payload
+	short _size_;	//window size for flow control
+	int   _blankline_;	//blank line to denote the end of header
+}packet;
 
 int rdp_connect();
 int rdp_listen();
@@ -74,9 +77,15 @@ int rdp_send(int sockfd, char* addr, char* port){
 	recvaddr.sin_port = htons(atoi(port));
 	recvaddr.sin_addr.s_addr = inet_addr(addr);
 	printf("%s, %s\n", port, addr);
-
+	char* buffer = malloc(sizeof(char)*1024);
+	packet pkt;
+	strncpy(pkt._magic_, "CSC361\0", 7);
+	strncpy(pkt._type_, "ACK\0", 4);
+	pkt._seqno_ = 123;
+	pkt._ackno_ = 45;
 	char* message = "hello server";
-	sendto(sockfd, message, (size_t)12, 0, (struct sockaddr *)&recvaddr, sizeof(recvaddr));
+	
+	sendto(sockfd, (char*)&pkt, sizeof(packet), 0, (struct sockaddr *)&recvaddr, sizeof(recvaddr));
 }
 int rdp_receive(){
 	/*
