@@ -1,4 +1,4 @@
-/* 	rws.c - Simple Web Server
+/* 	rws.c - Reliable Web Server
  *	CSc 361 February 26, 2010
  *	David Audet - V00150102
  */
@@ -352,26 +352,25 @@ int send_file(int socketfd, char* resource){
  ***************************************************************/
 int handle_connection(int socketfd, char* path, int seqNo){
 	//structure to hold the client socket info	
-	struct sock_data threadarg;		
+	struct sock_data client_info;
 	struct sockaddr_in client;
-	int clientSock;
-	socklen_t length = sizeof(struct sockaddr);
 	//accept the connection from the client
-	if((clientSock = accept(socketfd, (struct sockaddr*)&client, &length)) == -1){
+	client = rdp_accept(socketfd);
+
+/*	if((clientSock = accept(socketfd, (struct sockaddr*)&client, &length)) == -1){
 		perror("Could not accept client\n");
 		return -1;
 	}
-	//populate the sock_data structure
-	threadarg.socketfd = clientSock;
-	threadarg.addrinfo = &client;
-	if((handle_request(&threadarg, seqNo, path)) == -1){
+*/	//populate the sock_data structure
+	client_info.addrinfo = &client;
+	/*if((handle_request(&client_info, seqNo, path)) == -1){
 		printf("There was an error handling the client request\n");
 		return -1;
 		if((close(clientSock)) == -1){
 			printf("Could not close the client socket\n");
 		}
 	}
-	return 0;
+*/	return 0;
 }
 int main(int argc, char** argv){
 
@@ -401,7 +400,7 @@ int main(int argc, char** argv){
 	server.sin_family = AF_INET;
 	//fill in the local ip address of the server
 	//server.sin_addr.s_addr = htonl(INADDR_ANY);
-	server.sin_addr.s_addr = inet_addr("127.0.0.1");
+	server.sin_addr.s_addr = inet_addr("10.10.1.100");
 	server.sin_port = htons(atoi(argv[1]));
 
 	//Bind the socket
@@ -409,7 +408,6 @@ int main(int argc, char** argv){
 		perror("Could not bind socket");
 		return -1;
 	}
-	
 	//Check for valid port number(max tcp port is 65535
 	if((atoi(argv[1]) < 1025) || (atoi(argv[1]) > 65535)){
 		printf("Invalid port number for this server\n");
@@ -423,16 +421,6 @@ int main(int argc, char** argv){
 	printf("rws is running on UDP port %d and serving %s\n", atoi(argv[1]), argv[2]);
 	printf("press 'q' to quit ...\n");
 
-	char* buffer = malloc(sizeof(char) * 1024);
-	int addrlen;
-	packet pkt;
-	int recv_bytes = 0;
-	recv_bytes = recvfrom(serverSock, &pkt, sizeof(packet), 0, (struct sockaddr*)&server, (socklen_t*)&addrlen); 
-	printf("Server has received %d bytes\n", recv_bytes);
-	printf("Magic: %s\nType: %s\n", pkt._magic_, pkt._type_);
-	printf("Seqno: %d\nAckno: %d\n", pkt._seqno_, pkt._ackno_);
-	free(buffer);
-	/*
 	for(;;){
 		//reset the list of fds
 		FD_ZERO(&fds);
@@ -459,7 +447,7 @@ int main(int argc, char** argv){
 				}
 			}
 		}	
-	}*/
+	}
 	if((close(serverSock)) == -1){
 		printf("There was an error closing the server socket\n");
 		return -1;

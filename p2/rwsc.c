@@ -49,7 +49,7 @@ int main(int argc, char** argv){
 	//struct to hold the receiver's address
 //delete later
 //	sendto(sockfd, "hello server", 12, 0, (struct sockaddr*)&recvaddr, sizeof(recvaddr));
-	rdp_send(sockfd, argv[3], argv[4]);
+	rdp_connect(sockfd, argv[3], argv[4]);
 	close(sockfd);
 	return 0;
 }
