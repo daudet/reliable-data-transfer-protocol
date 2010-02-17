@@ -27,7 +27,7 @@ typedef struct packet{
 }packet;
 
 int rdp_connect(int, char*, char*);
-struct sockaddr_in rdp_accept(int socketfd);
+int rdp_accept(int socketfd);
 int rdp_send();
 int rdp_receive();
 packet rdp_create_packet(char*,char*, unsigned short, unsigned short);
@@ -45,25 +45,53 @@ int rdp_connect(int sockfd, char* addr, char* port){
 		}
 	*/	
 	struct sockaddr_in recvaddr;
+	struct timeval timeout;
+	struct sockaddr_in client;
+	socklen_t length = sizeof(struct sockaddr);
+
 	recvaddr.sin_family = AF_INET;
 	recvaddr.sin_port = htons(atoi(port));
 	recvaddr.sin_addr.s_addr = inet_addr(addr);
 	printf("%s, %s\n", port, addr);
-	packet pkt;
+	printf("Making an SYN packet ...\n");
+	packet pkt, r_pkt;
 	strncpy(pkt._magic_, "CSC361\0", 7);
-	strncpy(pkt._type_, "ACK\0", 4);
-	pkt._seqno_ = 123;
-	pkt._ackno_ = 45;
-	pkt._length_ = 32558;
-	pkt._window_ = 2048;
+	strncpy(pkt._type_, "SYN\0", 4);
+	pkt._seqno_ = 0;
+	pkt._ackno_ = 1;
+	pkt._length_ = 0;
+	pkt._window_ = 4;
 	strncpy(pkt._blankline_ , "\n\0", 2);
-	strncpy(pkt._data_, "<html>\nThis is a sent HTML page\n</html>\n\0",41);
 	printf("Size of packet: %d\n", (int)sizeof(packet));	
+	printf("Sending SYN packet to receiver ...\n");
+	timeout.tv_sec = 5;
+	timeout.tv_usec = 0;
+	//send the SYN packet
 	sendto(sockfd, (char*)&pkt, sizeof(packet), 0, (struct sockaddr *)&recvaddr, sizeof(recvaddr));
-	
+	fd_set fds;
+	for(;;){
+		FD_ZERO(&fds);
+		FD_SET(sockfd, &fds);
+		if((select(sockfd+1, &fds, NULL, NULL, &timeout)) < 0)
+			perror("select");
+		else{
+			if(FD_ISSET(sockfd, &fds)){
+			
+				recvfrom(sockfd, &r_pkt, sizeof(packet), 0, (struct sockaddr*)&client, &length);
+				if(strncmp(r_pkt._type_, "ACK", 3) == 0){
+					printf("Received ACK from server\n");
+					break;
+				}
+			}
+			else{
+				printf("Timeout on socket, resending SYN packet ...\n");
+				sendto(sockfd, (char*)&pkt, sizeof(packet), 0, (struct sockaddr *)&recvaddr, sizeof(recvaddr));
+			}
+		}
+	}
 	return 0;	
 }
-struct sockaddr_in rdp_accept(int socketfd){
+int rdp_accept(int sockfd){
 	/*
 	while((datarecv = recvfrom(client, ....)) != -1){
 		extract rdp header from client
@@ -74,21 +102,36 @@ struct sockaddr_in rdp_accept(int socketfd){
 	return HTTP request to RWS
 	*/
 	printf("RDP_ACCEPT\n");
-	packet pkt;
+	packet pkt, s_pkt;
 	struct sockaddr_in client;
 	socklen_t length = sizeof(struct sockaddr);
-	int recv_bytes = recvfrom(socketfd, &pkt, sizeof(packet), 0, (struct sockaddr*)&client, &length);
+	recvfrom(sockfd, &s_pkt, sizeof(packet), 0, (struct sockaddr*)&client, &length);
 	
-	printf("Server has received %d bytes\n", recv_bytes);
-	printf("Magic: %s\nType: %s\n", pkt._magic_, pkt._type_);
-	printf("Seqno: %d\nAckno: %d\n", pkt._seqno_, pkt._ackno_);
-	printf("Length: %d\nWindow: %d\n", pkt._length_, pkt._window_);
-	printf("%s", pkt._blankline_);
-	printf("%s", pkt._data_);
+	//printf("Server has received %d bytes\n", recv_bytes);
+	//printf("Magic: %s\nType: %s\n", s_pkt._magic_, s_pkt._type_);
+	//printf("Seqno: %d\nAckno: %d\n", s_pkt._seqno_, s_pkt._ackno_);
+	//printf("Length: %d\nWindow: %d\n", s_pkt._length_, s_pkt._window_);
+	//printf("%s", s_pkt._blankline_);
 	
 	//send ACK response
-
-	return client;
+	if(strncmp(s_pkt._type_, "SYN", 3) == 0){
+		printf("Received SYN packet from client ...\n");
+		printf("Creating ACK packet to send to client ...\n");
+		strncpy(pkt._magic_, "CSC361\0", 7);
+		strncpy(pkt._type_, "ACK\0", 4);
+		pkt._seqno_ = 1;
+		pkt._ackno_ = 1;
+		pkt._length_ = 0;
+		pkt._window_ = 4;
+		strncpy(pkt._blankline_ , "\n\0", 2);
+		printf("Sending ACK packet to client ...\n");
+		sendto(sockfd, (char*)&pkt, sizeof(packet), 0, (struct sockaddr *)&client, sizeof(client));
+		return 0;
+	}
+	else{
+		printf("Did not receive the SYN packet from client\n");
+		return -1;
+	}
 }
 int rdp_send(){
 	/*

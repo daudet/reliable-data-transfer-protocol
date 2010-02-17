@@ -355,8 +355,12 @@ int handle_connection(int socketfd, char* path, int seqNo){
 	struct sock_data client_info;
 	struct sockaddr_in client;
 	//accept the connection from the client
-	client = rdp_accept(socketfd);
-
+	for(;;){
+		if((rdp_accept(socketfd)) == 0){
+			printf("Connection successful!\n");
+			break;
+		}
+	}
 /*	if((clientSock = accept(socketfd, (struct sockaddr*)&client, &length)) == -1){
 		perror("Could not accept client\n");
 		return -1;
@@ -400,7 +404,7 @@ int main(int argc, char** argv){
 	server.sin_family = AF_INET;
 	//fill in the local ip address of the server
 	//server.sin_addr.s_addr = htonl(INADDR_ANY);
-	server.sin_addr.s_addr = inet_addr("10.10.1.100");
+	server.sin_addr.s_addr = inet_addr("127.0.0.1");
 	server.sin_port = htons(atoi(argv[1]));
 
 	//Bind the socket
