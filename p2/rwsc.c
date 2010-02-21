@@ -48,8 +48,12 @@ int main(int argc, char** argv){
 	recvaddr.sin_addr.s_addr = inet_addr(argv[3]);
 	//struct to hold the receiver's address
 //delete later
-//	sendto(sockfd, "hello server", 12, 0, (struct sockaddr*)&recvaddr, sizeof(recvaddr));
 	rdp_connect(sockfd, argv[3], argv[4]);
+	char* storage = malloc(sizeof(char)*1200);
+//	rdp_recv(sockfd, storage, sizeof(storage), &recvaddr); 
+	char* request = "GET /home/index.html HTTP/1.0\r\n\r\n";
+	rdp_send(sockfd, request, strlen(request), &recvaddr);
+	rdp_recv(sockfd, storage, sizeof(storage), &recvaddr); 
 	close(sockfd);
 	return 0;
 }
