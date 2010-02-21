@@ -23,7 +23,7 @@ typedef struct packet{
 	unsigned int _window_;	//4 byte window size for flow control
 	unsigned int _chksum_; // 4 byte checksum of the packet
 	char _blankline_[2];	//blank line to denote the end of header
-	char _data_[900];
+	char _data_[990];
 }packet;
 
 int rdp_connect(int, char*, char*);
@@ -146,23 +146,35 @@ int rdp_send(int sockfd, char* buffer, size_t size, struct sockaddr_in* client){
 	*/	
 	struct timeval timeout;
 	socklen_t length = sizeof(struct sockaddr);
-
-	printf("Making a DAT packet ...\n");
-	packet pkt;
-	strncpy(pkt._magic_, "CSC361\0", 7);
-	strncpy(pkt._type_, "DAT\0", 4);
-	pkt._seqno_ = 0;
-	pkt._ackno_ = 1;
-	pkt._length_ = size;
-	pkt._window_ = 4;
-	strncpy(pkt._blankline_ , "\n\0", 2);
-	strncpy(pkt._data_, buffer, size);
-	printf("Size of packet: %d\n", (int)sizeof(packet));	
-	printf("Sending DAT packet to receiver ...\n");
-	timeout.tv_sec = 5;
-	timeout.tv_usec = 0;
-	//send the SYN packet
-	sendto(sockfd, (char*)&pkt, sizeof(packet), 0, (struct sockaddr *)client, length);
+	char* send_buffer = malloc(sizeof(char)*990);
+	size_t data_count = size;	
+	int seqNo = 0;
+	while(data_count > 0){
+		printf("Making a DAT packet ...\n");
+		packet pkt;
+		strncpy(pkt._magic_, "CSC361\0", 7);
+		strncpy(pkt._type_, "DAT\0", 4);
+		pkt._seqno_ += seqNo;
+		pkt._ackno_ = 1;
+		pkt._length_ = size;
+		pkt._window_ = 4;
+		strncpy(pkt._blankline_ , "\n\0", 2);
+		if(data_count > 990){
+			strncpy(pkt._data_, buffer, 990);
+			data_count = data_count - 990;
+			buffer += 990;
+		}
+		else{
+			printf("last packet...\n");
+			strncpy(pkt._data_, buffer, strlen(buffer));
+			data_count = 0;
+		}
+		printf("Size of packet: %d\n", (int)sizeof(packet));	
+		printf("Sending DAT packet to receiver ...\n");
+		timeout.tv_sec = 0;
+		timeout.tv_usec = 300000;
+		sendto(sockfd, (char*)&pkt, sizeof(packet), 0, (struct sockaddr *)client, length);
+	}
 	return 0;
 }
 int rdp_recv(int sockfd, char* buffer, size_t size, struct sockaddr_in* client){
@@ -176,10 +188,10 @@ int rdp_recv(int sockfd, char* buffer, size_t size, struct sockaddr_in* client){
 	printf("rdp_recv\n");
 	packet pkt;
 	socklen_t length = sizeof(struct sockaddr);
-	recvfrom(sockfd, &pkt, sizeof(packet), 0, (struct sockaddr*)client, &length);
-	printf("Received the following data from the server:\n");
-	strncpy(buffer, pkt._data_, strlen(pkt._data_));;
-	printf("%s\n", buffer);
-
+	
+	if((recvfrom(sockfd, &pkt, sizeof(packet), 0, (struct sockaddr*)client, &length)) > 0){
+		printf("Received the following data from the server:\n");
+		strncpy(buffer, pkt._data_, strlen(pkt._data_));;
+	}
 	return 0;
 }

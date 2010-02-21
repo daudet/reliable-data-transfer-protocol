@@ -26,8 +26,8 @@ struct sock_data{
 //function prototypes
 int print_log(char* clientAddr, int port, char* method, char* resource, char* protocol, char* response, char* full_resource);
 int handle_request(int sockfd, struct sock_data*, char* path);
-int send_response(int socketfd, char* response, char* resource, struct sockaddr_in*);
-int send_file(int socketfd, char* resource);
+int send_response(int socketfd, char* response, char* resource, struct sockaddr_in* client);
+int send_file(int socketfd, char* resource, struct sockaddr_in* client);
 int handle_connection(int socketfd, char* path);
 
 /***************print_log*********************************
@@ -275,13 +275,13 @@ int send_response(int socketfd, char* response, char* resource, struct sockaddr_
 		return -1;
 	}
 	rdp_send(socketfd, send_buffer, strlen(send_buffer), client);
-/*	//send the file only if the response is 200 OK
+	//send the file only if the response is 200 OK
 	if(strstr(response, "200") != NULL)
-		if((send_file(socketfd, resource)) == -1){
+		if((send_file(socketfd, resource, client)) == -1){
 			printf("There was an error sending the file to the client\n");
 			return -1;
 		}
-*/	//free dynamically allocated memory
+	//free dynamically allocated memory
 	free(date);
 	free(extension);
 	free(send_buffer);
@@ -295,7 +295,7 @@ int send_response(int socketfd, char* response, char* resource, struct sockaddr_
  *	OUTPUT:	the resource as sent in 1460 byte chunks
  *
  ****************************************************/
-int send_file(int socketfd, char* resource){
+int send_file(int socketfd, char* resource, struct sockaddr_in* client){
 	//buffer to hold the info read from the resource file
 	char* buffer = malloc(sizeof(char)*900);
 	//struct to hold information about the resource
@@ -314,16 +314,10 @@ int send_file(int socketfd, char* resource){
 		perror("open");
 		return -1;
 	}
-	//read 1460 bytes from the file
-/*	while((amount_read = read(buffer_fd, buffer, 900)) > 0){
-		if((amount_sent = rdp_send(socketfd, buffer, amount_read)) < 0){
-			perror("send");
-			return -1;
-		}
-		else
-			total_sent += amount_sent;
+	if((amount_read = read(buffer_fd, buffer, stbuf.st_size)) > 0){
+		rdp_send(socketfd, buffer, amount_read, client);
 	}
-*/	//check to see if the whole file was sent successfully
+/*	//check to see if the whole file was sent successfully
 	if(total_sent == (int)stbuf.st_size)
 		printf("The file was sent successfully\n");
 	else{
@@ -332,7 +326,7 @@ int send_file(int socketfd, char* resource){
 		free(buffer);
 		return -1;
 	}
-	//close the resource file and free the memory of the buffer
+*/	//close the resource file and free the memory of the buffer
 	close(buffer_fd);
 	free(buffer);
 	return 0;
