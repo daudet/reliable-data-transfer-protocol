@@ -63,8 +63,8 @@ int rdp_connect(int sockfd, char* addr, char* port){
 	strncpy(pkt._blankline_ , "\n\0", 2);
 	printf("Size of packet: %d\n", (int)sizeof(packet));	
 	printf("Sending SYN packet to receiver ...\n");
-	timeout.tv_sec = 5;
-	timeout.tv_usec = 0;
+	timeout.tv_sec = 0;
+	timeout.tv_usec = 100000;
 	//send the SYN packet
 	sendto(sockfd, (char*)&pkt, sizeof(packet), 0, (struct sockaddr *)&recvaddr, sizeof(recvaddr));
 	fd_set fds;
@@ -185,13 +185,14 @@ int rdp_recv(int sockfd, char* buffer, size_t size, struct sockaddr_in* client){
 		if pkt->_type_ == SYN
 			rdp_create_packet(ACK
 	*/
-	printf("rdp_recv\n");
+	printf("**********rdp_recv**********\n");
 	packet pkt;
 	socklen_t length = sizeof(struct sockaddr);
 	
 	if((recvfrom(sockfd, &pkt, sizeof(packet), 0, (struct sockaddr*)client, &length)) > 0){
 		printf("Received the following data from the server:\n");
-		strncpy(buffer, pkt._data_, strlen(pkt._data_));;
+		strncpy(buffer, pkt._data_, strlen(pkt._data_));
+		return 0;
 	}
-	return 0;
+	return -1;
 }

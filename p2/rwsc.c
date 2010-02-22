@@ -53,10 +53,10 @@ int main(int argc, char** argv){
 //	rdp_recv(sockfd, storage, sizeof(storage), &recvaddr); 
 	char* request = "GET / HTTP/1.0\r\n\r\n";
 	rdp_send(sockfd, request, strlen(request), &recvaddr);
-	rdp_recv(sockfd, storage, strlen(storage), &recvaddr); 
-	printf("%s\n", storage);
-	rdp_recv(sockfd, storage, strlen(storage), &recvaddr);
-	printf("%s\n", storage);
+	
+	while(rdp_recv(sockfd, storage, strlen(storage), &recvaddr) == 0) 
+		printf("%s\n", storage);
+	
 	close(sockfd);
 	return 0;
 }
