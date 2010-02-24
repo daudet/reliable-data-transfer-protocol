@@ -297,7 +297,6 @@ int send_response(int socketfd, char* response, char* resource, struct sockaddr_
  ****************************************************/
 int send_file(int socketfd, char* resource, struct sockaddr_in* client){
 	//buffer to hold the info read from the resource file
-	char* buffer = malloc(sizeof(char)*900);
 	//struct to hold information about the resource
 	struct stat stbuf;
 	int amount_read = 0;
@@ -314,6 +313,8 @@ int send_file(int socketfd, char* resource, struct sockaddr_in* client){
 		perror("open");
 		return -1;
 	}
+
+	char* buffer = malloc(sizeof(char)*stbuf.st_size);
 	if((amount_read = read(buffer_fd, buffer, stbuf.st_size)) > 0){
 		rdp_send(socketfd, buffer, amount_read, client);
 	}
@@ -389,8 +390,8 @@ int main(int argc, char** argv){
 	server.sin_family = AF_INET;
 	//fill in the local ip address of the server
 	//server.sin_addr.s_addr = htonl(INADDR_ANY);
-	//server.sin_addr.s_addr = inet_addr("127.0.0.1");
-	server.sin_addr.s_addr = inet_addr("10.10.1.100");
+	server.sin_addr.s_addr = inet_addr("127.0.0.1");
+	//server.sin_addr.s_addr = inet_addr("10.10.1.100");
 	server.sin_port = htons(atoi(argv[1]));
 
 	//Bind the socket

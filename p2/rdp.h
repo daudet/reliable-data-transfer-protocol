@@ -151,30 +151,59 @@ int rdp_send(int sockfd, char* buffer, size_t size, struct sockaddr_in* client){
 	int seqNo = 0;
 	while(data_count > 0){
 		printf("Making a DAT packet ...\n");
-		packet pkt;
+		packet pkt, r_pkt;
 		strncpy(pkt._magic_, "CSC361\0", 7);
 		strncpy(pkt._type_, "DAT\0", 4);
 		pkt._seqno_ += seqNo;
 		pkt._ackno_ = 1;
-		pkt._length_ = size;
 		pkt._window_ = 4;
 		strncpy(pkt._blankline_ , "\n\0", 2);
 		if(data_count > 990){
 			strncpy(pkt._data_, buffer, 990);
+			pkt._length_ = 990;
 			data_count = data_count - 990;
 			buffer += 990;
 		}
 		else{
 			printf("last packet...\n");
-			strncpy(pkt._data_, buffer, strlen(buffer));
+			strncpy(pkt._data_, buffer, data_count);
+			pkt._length_ = data_count;
 			data_count = 0;
 		}
+		
+		seqNo = (size - data_count);
 		printf("Size of packet: %d\n", (int)sizeof(packet));	
 		printf("Sending DAT packet to receiver ...\n");
-		timeout.tv_sec = 0;
-		timeout.tv_usec = 300000;
+		timeout.tv_sec = 5;
+		timeout.tv_usec = 0;
 		sendto(sockfd, (char*)&pkt, sizeof(packet), 0, (struct sockaddr *)client, length);
+		printf("Waiting for ACK on last packet...\n");
+		fd_set fds;
+		for(;;){
+			FD_ZERO(&fds);
+			FD_SET(sockfd, &fds);
+			if((select(sockfd+1, &fds, NULL, NULL, &timeout)) < 0)
+				printf("error with select rdp_send");
+			else{
+				if(FD_ISSET(sockfd, &fds)){
+
+					recvfrom(sockfd, &r_pkt, sizeof(packet), 0, (struct sockaddr*)&client, &length);
+					if((strncmp(r_pkt._type_, "ACK", 3) == 0)){ 
+						//(seqNo == r_pkt._seqno_)){
+						printf("Received ACK for seqNo %d\n", seqNo);
+						seqNo = r_pkt._seqno_;
+						break;
+					}
+
+				}
+				else{
+					printf("Timeout on socket, resending DAT packet seqno %d\n", seqNo);
+					sendto(sockfd, (char*)&pkt, sizeof(packet), 0, (struct sockaddr *)client, length);
+				}
+			}
+		}
 	}
+
 	return 0;
 }
 int rdp_recv(int sockfd, char* buffer, size_t size, struct sockaddr_in* client){
@@ -186,13 +215,37 @@ int rdp_recv(int sockfd, char* buffer, size_t size, struct sockaddr_in* client){
 			rdp_create_packet(ACK
 	*/
 	printf("**********rdp_recv**********\n");
-	packet pkt;
+	packet pkt, r_pkt;
 	socklen_t length = sizeof(struct sockaddr);
 	
 	if((recvfrom(sockfd, &pkt, sizeof(packet), 0, (struct sockaddr*)client, &length)) > 0){
 		printf("Received the following data from the server:\n");
 		strncpy(buffer, pkt._data_, strlen(pkt._data_));
-		return 0;
-	}
+	
+		if(strncmp(pkt._type_, "DAT", 3) == 0){
+			printf("Received next expected packet...\n");
+			printf("Sending ACK on last packet...\n");
+			strncpy(r_pkt._magic_, "CSC361\0", 7);
+			strncpy(r_pkt._type_, "ACK\0", 4);
+			r_pkt._seqno_ = pkt._seqno_ + pkt._length_;
+			r_pkt._length_ = 0;
+			r_pkt._window_ = 4;
+			strncpy(r_pkt._blankline_, "\n\0", 2);
+			sendto(sockfd, (char*)&r_pkt, sizeof(packet), 0, (struct sockaddr *)client, length);
+			return 0;
+		}
+		else{
+			printf("Did not receive the expected packet...\n");
+			return -1;
+		}
+}
+else
+	printf("Did not receive anything...\n");
 	return -1;
 }
+
+
+
+
+
+
