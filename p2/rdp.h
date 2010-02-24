@@ -188,7 +188,7 @@ int rdp_send(int sockfd, char* buffer, size_t size, struct sockaddr_in* client){
 				if(FD_ISSET(sockfd, &fds)){
 
 					recvfrom(sockfd, &r_pkt, sizeof(packet), 0, (struct sockaddr*)&client, &length);
-					if((strncmp(r_pkt._type_, "ACK", 3) == 0)){ 
+					if((strncmp(r_pkt._type_, "ACK", 3)) == 0){ 
 						//(seqNo == r_pkt._seqno_)){
 						printf("Received ACK for seqNo %d\n", seqNo);
 						seqNo = r_pkt._seqno_;
@@ -231,21 +231,18 @@ int rdp_recv(int sockfd, char* buffer, size_t size, struct sockaddr_in* client){
 			r_pkt._length_ = 0;
 			r_pkt._window_ = 4;
 			strncpy(r_pkt._blankline_, "\n\0", 2);
-			sendto(sockfd, (char*)&r_pkt, sizeof(packet), 0, (struct sockaddr *)client, length);
+			if((sendto(sockfd, (char*)&r_pkt, sizeof(packet), 0, (struct sockaddr *)client, length)) < 0)
+				printf("The ACK was not sent properly\n");
+
 			return 0;
 		}
 		else{
 			printf("Did not receive the expected packet...\n");
 			return -1;
 		}
+	}
+	else{
+		printf("Did not receive anything...\n");
+		return -1;
+	}
 }
-else
-	printf("Did not receive anything...\n");
-	return -1;
-}
-
-
-
-
-
-
